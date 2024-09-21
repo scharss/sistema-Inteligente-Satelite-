@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Inteligente de Vigilancia Fitosanitaria</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin: 20px 0;
+    }
+    .dashboard {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+    }
+    .sensor {
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      width: 300px;
+    }
+    canvas {
+      width: 100%;
+      height: 150px;
+    }
+    .sensor-value {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .semaforo {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+    }
+    .semaforo-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px;
+      width: 150px;
+      border-radius: 10px;
+      color: white;
+      text-align: center;
+    }
+    .semaforo-value {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .semaforo-message {
+      font-size: 14px;
+      font-weight: normal;
+      margin-top: 5px;
+    }
+    @media (max-width: 768px) {
+      .sensor {
+        width: 200px;
+      }
+    }
+
+    .styled-button {
+    background-color: #4CAF50; /* Color de fondo */
+    border: none; /* Sin borde */
+    color: white; /* Color del texto */
+    padding: 15px 32px; /* Espaciado interno */
+    text-align: center; /* Alineación del texto */
+    text-decoration: none; /* Sin subrayado */
+    display: inline-block; /* Mostrar en bloque en línea */
+    font-size: 16px; /* Tamaño de fuente */
+    margin: 10px 2px; /* Márgenes */
+    cursor: pointer; /* Cambia el cursor a "pointer" cuando pasa por encima */
+    border-radius: 8px; /* Esquinas redondeadas */
+    transition: background-color 0.3s ease; /* Transición suave para el color de fondo */
+  }
+
+  .styled-button:hover {
+    background-color: #45a049; /* Color al pasar el mouse */
+  }
+  </style>
+</head>
+<body>
+  <h1>Sistema Inteligente de Vigilancia Fitosanitaria</h1>
+  <div class="dashboard">
+    <div class="sensor">
+      <h3>Humedad del Suelo</h3>
+      <canvas id="humedadSueloChart"></canvas>
+      <p class="sensor-value" id="humedadSueloValue">-- %</p>
+    </div>
+    <div class="sensor">
+      <h3>Temperatura Ambiente</h3>
+      <canvas id="temperaturaChart"></canvas>
+      <p class="sensor-value" id="temperaturaValue">-- °C</p>
+    </div>
+    <div class="sensor">
+      <h3>Humedad Ambiente</h3>
+      <canvas id="humedadAmbienteChart"></canvas>
+      <p class="sensor-value" id="humedadAmbienteValue">-- %</p>
+    </div>
+    <div class="sensor">
+      <h3>Luz Detectada</h3>
+      <canvas id="luzDetectadaChart"></canvas>
+      <p class="sensor-value" id="luzDetectadaValue">--</p>
+    </div>
+    <div class="sensor">
+      <h3>Nivel de Agua</h3>
+      <canvas id="nivelAguaChart"></canvas>
+      <p class="sensor-value" id="nivelAguaValue">-- %</p>
+    </div>
+  </div>
+
+  <!-- Semáforo -->
+  <div class="semaforo">
+    <div class="semaforo-item" id="semaforoHumedadSuelo">
+      <p>Humedad del Suelo</p>
+      <p class="semaforo-value" id="semaforoHumedadSueloValue">--</p>
+      <p class="semaforo-message" id="semaforoHumedadSueloMessage">--</p>
+    </div>
+    <div class="semaforo-item" id="semaforoTemperatura">
+      <p>Temperatura Ambiente</p>
+      <p class="semaforo-value" id="semaforoTemperaturaValue">--</p>
+      <p class="semaforo-message" id="semaforoTemperaturaMessage">--</p>
+    </div>
+    <div class="semaforo-item" id="semaforoHumedadAmbiente">
+      <p>Humedad Ambiente</p>
+      <p class="semaforo-value" id="semaforoHumedadAmbienteValue">--</p>
+      <p class="semaforo-message" id="semaforoHumedadAmbienteMessage">--</p>
+    </div>
+    <div class="semaforo-item" id="semaforoLuzDetectada">
+      <p>Luz Detectada</p>
+      <p class="semaforo-value" id="semaforoLuzDetectadaValue">--</p>
+      <p class="semaforo-message" id="semaforoLuzDetectadaMessage">--</p>
+    </div>
+    <div class="semaforo-item" id="semaforoNivelAgua">
+      <p>Nivel de Agua</p>
+      <p class="semaforo-value" id="semaforoNivelAguaValue">--</p>
+      <p class="semaforo-message" id="semaforoNivelAguaMessage">--</p>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+
+    // Crear gráficos de líneas con Chart.js
+    const createLineChart = (ctx, label) => {
+      return new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [], // Etiquetas de tiempo o muestras
+          datasets: [{
+            label: label,
+            data: [], // Datos que se van a actualizar en tiempo real
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 2,
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              display: true,
+              title: {
+                display: true,
+                text: 'Tiempo'
+              }
+            },
+            y: {
+              display: true,
+              title: {
+                display: true,
+                text: 'Valor'
+              },
+              ticks: {
+                callback: function(value, index, values) {
+                  return value === 1 ? 'Sí' : 'No';
+                }
+              }
+            }
+          }
+        }
+      });
+    };
+
+    // Inicializar gráficos de los sensores
+    const humedadSueloChart = createLineChart(document.getElementById('humedadSueloChart'), 'Humedad del Suelo (%)');
+    const temperaturaChart = createLineChart(document.getElementById('temperaturaChart'), 'Temperatura (°C)');
+    const humedadAmbienteChart = createLineChart(document.getElementById('humedadAmbienteChart'), 'Humedad Ambiente (%)');
+    const luzDetectadaChart = createLineChart(document.getElementById('luzDetectadaChart'), 'Luz Detectada');
+    const nivelAguaChart = createLineChart(document.getElementById('nivelAguaChart'), 'Nivel de Agua (%)');
+
+    // Función para actualizar los gráficos y semáforos con los datos en tiempo real
+    socket.on('arduinoData', function(data) {
+      try {
+        const sensorData = JSON.parse(data);
+
+        // Actualizar gráfico de Humedad del Suelo
+        updateChart(humedadSueloChart, sensorData.humedadSuelo, 'humedadSueloValue');
+        updateSemaforo(sensorData.humedadSuelo, 'semaforoHumedadSuelo', 'semaforoHumedadSueloValue', 'semaforoHumedadSueloMessage', [60, 80], "Nivel de riesgo:");
+
+        // Actualizar gráfico de Temperatura
+        updateChart(temperaturaChart, sensorData.temperatura, 'temperaturaValue');
+        updateSemaforo(sensorData.temperatura, 'semaforoTemperatura', 'semaforoTemperaturaValue', 'semaforoTemperaturaMessage', [28, 30], "Condiciones de propagación:");
+
+        // Actualizar gráfico de Humedad Ambiente
+        updateChart(humedadAmbienteChart, sensorData.humedadAmbiente, 'humedadAmbienteValue');
+        updateSemaforo(sensorData.humedadAmbiente, 'semaforoHumedadAmbiente', 'semaforoHumedadAmbienteValue', 'semaforoHumedadAmbienteMessage', [60, 80], "Riesgo de infección:");
+
+        // Actualizar gráfico de Luz Detectada (Mostrar "Sí" o "No")
+        const luzDetectada = sensorData.luzDetectada ? "Sí" : "No";
+        updateChart(luzDetectadaChart, sensorData.luzDetectada ? 1 : 0, 'luzDetectadaValue', luzDetectada);
+        updateSemaforoLuz(sensorData.luzDetectada, 'semaforoLuzDetectada', 'semaforoLuzDetectadaValue', 'semaforoLuzDetectadaMessage');
+
+        // Actualizar gráfico de Nivel de Agua
+        updateChart(nivelAguaChart, sensorData.nivelAgua, 'nivelAguaValue');
+        updateSemaforo(sensorData.nivelAgua, 'semaforoNivelAgua', 'semaforoNivelAguaValue', 'semaforoNivelAguaMessage', [40, 60], "Formación de charcos:");
+
+      } catch (e) {
+        console.error('Error al parsear los datos:', e);
+      }
+    });
+
+    // Función para actualizar los gráficos
+    function updateChart(chart, value, elementId, displayValue = null) {
+      if (chart.data.labels.length > 20) {
+        chart.data.labels.shift();
+        chart.data.datasets[0].data.shift();
+      }
+      chart.data.labels.push(new Date().toLocaleTimeString());
+      chart.data.datasets[0].data.push(value);
+      chart.update();
+      document.getElementById(elementId).textContent = displayValue || value + '%';
+    }
+
+    // Función para actualizar los semáforos con mensajes
+    function updateSemaforo(value, semaforoId, semaforoValueId, semaforoMessageId, ranges, message) {
+      let backgroundColor;
+      let messageText;
+      if (value <= ranges[0]) {
+        backgroundColor = 'green';  // Normal
+        messageText = message + " Normal";
+      } else if (value > ranges[0] && value <= ranges[1]) {
+        backgroundColor = 'yellow'; // Alerta
+        messageText = message + " Alerta";
+      } else {
+        backgroundColor = 'red';    // Peligro
+        messageText = message + " Peligro";
+      }
+      const semaforoElement = document.getElementById(semaforoId);
+      semaforoElement.style.backgroundColor = backgroundColor;
+      document.getElementById(semaforoValueId).textContent = value + '%';
+      document.getElementById(semaforoMessageId).textContent = messageText;
+    }
+
+    // Función especial para Luz Detectada ("Sí" o "No")
+    function updateSemaforoLuz(value, semaforoId, semaforoValueId, semaforoMessageId) {
+      let backgroundColor;
+      let messageText;
+      if (value) {
+        backgroundColor = 'green';  // Luz Detectada (Normal)
+        messageText = "Acumulación de humedad: Normal";
+        document.getElementById(semaforoValueId).textContent = "Sí";
+      } else {
+        backgroundColor = 'red';    // Sin luz (Peligro)
+        messageText = "Acumulación de humedad: Peligro";
+        document.getElementById(semaforoValueId).textContent = "No";
+      }
+      const semaforoElement = document.getElementById(semaforoId);
+      semaforoElement.style.backgroundColor = backgroundColor;
+      document.getElementById(semaforoMessageId).textContent = messageText;
+    }
+  </script>
+  <br><br><br>
+  
+
+  <a href="agrodata/index2.html">
+    <button class="styled-button">Ver Datos del Satélite</button>
+  </a>
+  
+ <br><br><br>
+</body>
+</html>
