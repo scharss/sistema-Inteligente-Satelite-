@@ -1,6 +1,6 @@
 # Sistema-Inteligente-de-Vigilancia-Fitosanitaria
 # npm start
-![Modelo](![image](https://github.com/user-attachments/assets/54148016-5cc2-4210-b772-570480292313)
+![Prototipo](https://raw.githubusercontent.com/scharss/sistema-Inteligente-Satelite-/refs/heads/main/img/SistemaDeVIgilanciaPrototipo.jpg)
 ![Interfaz](https://raw.githubusercontent.com/scharss/Sistema-Inteligente-de-Vigilancia-Fitosanitaria/refs/heads/main/img/interfaz.png)
 
 
